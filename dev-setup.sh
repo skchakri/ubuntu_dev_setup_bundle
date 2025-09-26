@@ -165,25 +165,52 @@ fi
 
 # LazyGit
 if ! need_cmd lazygit; then
-  LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-  curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION#v}_Linux_x86_64.tar.gz"
-  tar xf lazygit.tar.gz lazygit
-  sudo install lazygit /usr/local/bin
-  rm lazygit lazygit.tar.gz
+  log "Installing LazyGit (terminal git UI)…"
+  LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' 2>/dev/null)
+  if [[ -n "$LAZYGIT_VERSION" ]]; then
+    if curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION#v}_Linux_x86_64.tar.gz" 2>/dev/null; then
+      tar xf lazygit.tar.gz lazygit 2>/dev/null && sudo install lazygit /usr/local/bin 2>/dev/null
+      rm -f lazygit lazygit.tar.gz
+      log "✅ LazyGit installed successfully"
+    else
+      log "⚠️ LazyGit download failed, skipping..."
+    fi
+  else
+    log "⚠️ Could not get LazyGit version, skipping..."
+  fi
 fi
 
-# LazyDocker
+# LazyDocker - Handle Docker permission timing
 if ! need_cmd lazydocker; then
-  curl https://raw.githubusercontent.com/jesseduffield/lazydocker/main/scripts/install_update_linux.sh | bash
+  log "Installing LazyDocker (terminal docker UI)…"
+  # Check if Docker is installed and running
+  if need_cmd docker; then
+    # Try to install LazyDocker
+    if curl -s https://raw.githubusercontent.com/jesseduffield/lazydocker/main/scripts/install_update_linux.sh | bash >/dev/null 2>&1; then
+      log "✅ LazyDocker installed successfully"
+      log "📋 Note: LazyDocker requires Docker group membership - effective after logout/login"
+    else
+      log "⚠️ LazyDocker installation failed - will be available after Docker setup completes"
+    fi
+  else
+    log "⚠️ Docker not found - LazyDocker will be available after logout/login"
+  fi
 fi
 
 # Eza (modern ls replacement)
 if ! need_cmd eza; then
-  sudo apt-get install -y eza || {
-    wget -c https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-gnu.tar.gz -O - | tar xz
-    sudo chmod +x eza
-    sudo mv eza /usr/local/bin/
-  }
+  log "Installing Eza (modern ls replacement)…"
+  if sudo apt-get install -y eza 2>/dev/null; then
+    log "✅ Eza installed via apt"
+  else
+    log "Installing Eza from GitHub releases…"
+    if wget -c https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-gnu.tar.gz -O - 2>/dev/null | tar xz 2>/dev/null; then
+      sudo chmod +x eza && sudo mv eza /usr/local/bin/ 2>/dev/null
+      log "✅ Eza installed from GitHub"
+    else
+      log "⚠️ Eza installation failed, ls will work as usual"
+    fi
+  fi
 fi
 
 # ---------- Programming fonts ----------
@@ -207,4 +234,4 @@ if need_cmd zsh; then
   fi
 fi
 
-log "✅ Setup complete. Installed:\n- Core tools, Docker\n- Ruby ${DEFAULT_RUBY} (RVM) + Rails\n- Node LTS (nvm) + Corepack\n- DBeaver CE, MongoDB shell\n- Chrome, Firefox, Zoom, Teams\n- VS Code, Slack, Notepad++, Android Studio\n- Sway Wayland compositor + Waybar + Wofi\n- Enhanced terminal: Zoxide, Starship, LazyGit, LazyDocker, Eza\n- Programming fonts: JetBrains Mono, Fira Code, Cascadia Code\n\nNOTE: Log out/in for docker group and nvm PATH to apply.\nTo use Sway: Select 'Sway' from login screen session options."
+log "✅ Setup complete. Installed:\n- Core tools, Docker\n- Ruby ${DEFAULT_RUBY} (RVM) + Rails\n- Node LTS (nvm) + Corepack\n- DBeaver CE, MongoDB shell\n- Chrome, Firefox, Zoom, Teams\n- VS Code, Slack, Notepad++, Android Studio\n- Sway Wayland compositor + Waybar + Wofi\n- Enhanced terminal: Zoxide, Starship, LazyGit, LazyDocker, Eza\n- Programming fonts: JetBrains Mono, Fira Code, Cascadia Code\n\n🔄 IMPORTANT: Log out and back in for:\n   • Docker group permissions (required for LazyDocker)\n   • nvm PATH configuration\n   • Shell enhancements (zoxide, starship)\n\n🪟 To use Sway: Select 'Sway' from login screen session options.\n\n⚠️ If any downloads failed, re-run the script after reboot."
