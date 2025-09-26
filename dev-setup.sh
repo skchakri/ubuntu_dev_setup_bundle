@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Ubuntu Dev Machine Bootstrap (Rails + JS + Docker + Extras)
 # Works on Ubuntu 22.04 / 24.04
+# Version: 1.0.0
 
 set -euo pipefail
 log() { echo -e "\n\033[1;32m[SETUP]\033[0m $*\n"; }
