@@ -140,6 +140,56 @@ if ! need_cmd firefox; then
   sudo apt-get install -y firefox
 fi
 
+# ---------- Sway Wayland Compositor (Hyprland alternative) ----------
+if ! need_cmd sway; then
+  log "Installing Sway Wayland compositor + supporting tools…"
+  sudo apt-get install -y   sway waybar wofi   swaylock swayidle   foot alacritty   grim slurp wl-clipboard   light playerctl   brightnessctl pulseaudio-utils
+fi
+
+# ---------- Omarchy-inspired terminal tools ----------
+log "Installing enhanced terminal tools (zoxide, starship, lazygit)…"
+
+# Zoxide (smart cd replacement)
+if ! need_cmd zoxide; then
+  curl -sS https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | bash
+  echo 'eval "$(zoxide init bash)"' >> "$REAL_HOME/.bashrc"
+  echo 'eval "$(zoxide init zsh)"' >> "$REAL_HOME/.zshrc" 2>/dev/null || true
+fi
+
+# Starship prompt
+if ! need_cmd starship; then
+  curl -sS https://starship.rs/install.sh | sh -s -- -y
+  echo 'eval "$(starship init bash)"' >> "$REAL_HOME/.bashrc"
+  echo 'eval "$(starship init zsh)"' >> "$REAL_HOME/.zshrc" 2>/dev/null || true
+fi
+
+# LazyGit
+if ! need_cmd lazygit; then
+  LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+  curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION#v}_Linux_x86_64.tar.gz"
+  tar xf lazygit.tar.gz lazygit
+  sudo install lazygit /usr/local/bin
+  rm lazygit lazygit.tar.gz
+fi
+
+# LazyDocker
+if ! need_cmd lazydocker; then
+  curl https://raw.githubusercontent.com/jesseduffield/lazydocker/main/scripts/install_update_linux.sh | bash
+fi
+
+# Eza (modern ls replacement)
+if ! need_cmd eza; then
+  sudo apt-get install -y eza || {
+    wget -c https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-gnu.tar.gz -O - | tar xz
+    sudo chmod +x eza
+    sudo mv eza /usr/local/bin/
+  }
+fi
+
+# ---------- Programming fonts ----------
+log "Installing programming fonts…"
+sudo apt-get install -y fonts-jetbrains-mono fonts-firacode fonts-cascadia-code || true
+
 # ---------- Snap apps ----------
 if need_cmd snap; then
   log "Installing Snap apps (VS Code, Slack, Notepad++, Android Studio)…"
@@ -157,4 +207,4 @@ if need_cmd zsh; then
   fi
 fi
 
-log "✅ Setup complete. Installed:\n- Core tools, Docker\n- Ruby ${DEFAULT_RUBY} (RVM) + Rails\n- Node LTS (nvm) + Corepack\n- DBeaver CE, MongoDB shell\n- Chrome, Firefox, Zoom, Teams\n- VS Code, Slack, Notepad++, Android Studio\n\nNOTE: Log out/in for docker group and nvm PATH to apply."
+log "✅ Setup complete. Installed:\n- Core tools, Docker\n- Ruby ${DEFAULT_RUBY} (RVM) + Rails\n- Node LTS (nvm) + Corepack\n- DBeaver CE, MongoDB shell\n- Chrome, Firefox, Zoom, Teams\n- VS Code, Slack, Notepad++, Android Studio\n- Sway Wayland compositor + Waybar + Wofi\n- Enhanced terminal: Zoxide, Starship, LazyGit, LazyDocker, Eza\n- Programming fonts: JetBrains Mono, Fira Code, Cascadia Code\n\nNOTE: Log out/in for docker group and nvm PATH to apply.\nTo use Sway: Select 'Sway' from login screen session options."

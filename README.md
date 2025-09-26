@@ -31,11 +31,30 @@ chmod +x dev-setup.sh
 - **DBeaver CE** (database GUI)
 - **MongoDB shell** (mongosh)
 
+### Wayland Compositor & Window Management
+- **Sway** - Tiling Wayland compositor (Hyprland alternative)
+- **Waybar** - Customizable status bar
+- **Wofi** - Application launcher
+- **Supporting tools**: swaylock, swayidle, grim, slurp
+
+### Enhanced Terminal Experience
+- **Zoxide** - Smart directory jumper (better cd)
+- **Starship** - Beautiful, customizable prompt
+- **LazyGit** - Terminal UI for git operations
+- **LazyDocker** - Terminal UI for Docker management
+- **Eza** - Modern ls replacement with colors
+
 ### Applications & Browsers
 - **Browsers**: Google Chrome, Firefox
 - **Communication**: Zoom, Microsoft Teams, Slack
 - **Development**: VS Code, Android Studio
+- **Terminals**: foot, alacritty
 - **Utilities**: Notepad++
+
+### Programming Fonts
+- **JetBrains Mono** - Popular coding font
+- **Fira Code** - Font with programming ligatures
+- **Cascadia Code** - Microsoft's developer font
 
 ## 🎯 Supported Ubuntu Versions
 
@@ -62,6 +81,15 @@ rails --version
 # Check Node.js
 node --version
 npm --version
+
+# Check enhanced terminal tools
+zoxide --version
+starship --version
+lazygit --version
+eza --version
+
+# Check Sway (if using Wayland session)
+sway --version
 ```
 
 ## 🔧 Customization
@@ -99,6 +127,15 @@ source ~/.bashrc
 **Snap apps not installing?**
 - Some Ubuntu flavors disable snap by default
 - Install .deb versions instead or enable snap first
+
+**Sway not working?**
+- Ensure you're using a Wayland session (not X11)
+- Some graphics drivers may have compatibility issues
+- Use `WAYLAND_DISPLAY=wayland-1 sway` to test
+
+**Terminal tools not found after installation?**
+- Run `source ~/.bashrc` or start a new terminal session
+- Check that the tools are in your PATH with `echo $PATH`
 
 ## 🤝 Contributing
 
