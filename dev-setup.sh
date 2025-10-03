@@ -200,293 +200,139 @@ if ! snap list signal-desktop >/dev/null 2>&1; then
   sudo snap install signal-desktop || true
 fi
 
-# ---------- Hyprland Wayland Compositor (with Nvidia support) ----------
-if ! need_cmd Hyprland; then
-  log "Installing Hyprland Wayland compositor + supporting tools…"
+# ---------- Sway Wayland Compositor ----------
+if ! need_cmd sway; then
+  log "Installing Sway Wayland compositor + supporting tools…"
 
-  # Install supporting Wayland tools first
+  # Install Sway and essential Wayland tools
   sudo apt-get install -y \
-    waybar wofi kitty foot alacritty \
+    sway swaylock swayidle swaybg \
+    waybar wofi \
     grim slurp wl-clipboard \
-    swaylock swayidle \
+    kitty foot alacritty \
+    mako-notifier libnotify-bin \
     light playerctl brightnessctl pulseaudio-utils \
-    dunst libnotify-bin || true
+    xdg-desktop-portal-wlr || true
 
-  # Install Hyprland build dependencies
-  sudo apt-get install -y \
-    meson wget build-essential ninja-build cmake-extras cmake gettext gettext-base \
-    fontconfig libfontconfig-dev libffi-dev libxml2-dev libdrm-dev libxkbcommon-x11-dev \
-    libxkbregistry-dev libxkbcommon-dev libpixman-1-dev libudev-dev libseat-dev seatd \
-    libxcb-dri3-dev libvulkan-dev libvulkan-volk-dev vulkan-utility-libraries-dev \
-    libegl-dev libgles2 libegl1-mesa-dev glslang-tools \
-    libinput-bin libinput-dev libxcb-composite0-dev libavutil-dev libavcodec-dev \
-    libavformat-dev libxcb-ewmh2 libxcb-ewmh-dev libxcb-present-dev libxcb-icccm4-dev \
-    libxcb-render-util0-dev libxcb-res0-dev libxcb-xinput-dev xdg-desktop-portal-wlr \
-    libtomlplusplus3 libpugixml-dev \
-    libwayland-dev wayland-protocols libgbm-dev libliftoff-dev libdisplay-info-dev hwdata || true
+  # Create Sway config directory
+  sudo -u "$REAL_USER" mkdir -p "$REAL_HOME/.config/sway"
 
-  # Upgrade CMake if needed (Hyprland requires 3.30+)
-  CMAKE_VERSION=$(cmake --version 2>/dev/null | head -n1 | grep -oP '\d+\.\d+' | head -1 || echo "0")
-  if ! awk -v ver="$CMAKE_VERSION" 'BEGIN{exit(!(ver>=3.30))}' 2>/dev/null; then
-    log "Upgrading CMake to latest version (required for Hyprland)…"
-    # Remove old cmake
-    sudo apt-get remove -y cmake cmake-data 2>/dev/null || true
+  # Create default Sway config if it doesn't exist
+  if [[ ! -f "$REAL_HOME/.config/sway/config" ]]; then
+    log "Creating default Sway config…"
+    sudo -u "$REAL_USER" cat > "$REAL_HOME/.config/sway/config" << 'EOF'
+# Sway Configuration
 
-    # Install latest CMake from Kitware's repository
-    wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
-    echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
-    sudo apt-get update -y
-    sudo apt-get install -y cmake || true
-  fi
+# Mod key (Mod4 = Super/Windows key)
+set $mod Mod4
 
-  # Check libinput version (aquamarine needs 1.26.0+)
-  LIBINPUT_VERSION=$(pkg-config --modversion libinput 2>/dev/null || echo "0")
-  if ! awk -v ver="$LIBINPUT_VERSION" 'BEGIN{exit(!(ver>=1.26))}' 2>/dev/null; then
-    log "Current libinput version ($LIBINPUT_VERSION) is older than required (1.26.0)"
-    log "Attempting to upgrade libinput from source…"
+# Terminal
+set $term kitty
 
-    # Temporarily disable unbound variable check
-    set +u
-    LIBINPUT_BUILD_DIR=$(mktemp -d)
-    cd "$LIBINPUT_BUILD_DIR"
+# Application launcher
+set $menu wofi --show drun
 
-    # Install libinput build dependencies
-    sudo apt-get install -y libmtdev-dev libevdev-dev libwacom-dev meson ninja-build || true
+# Wallpaper
+output * bg /usr/share/backgrounds/sway/Sway_Wallpaper_Blue_1920x1080.png fill
 
-    if wget https://gitlab.freedesktop.org/libinput/libinput/-/archive/1.27.0/libinput-1.27.0.tar.gz 2>/dev/null; then
-      tar -xf libinput-1.27.0.tar.gz
-      cd libinput-1.27.0
-      if meson setup --prefix=/usr builddir && ninja -C builddir && sudo ninja -C builddir install; then
-        log "✅ libinput upgraded to 1.27.0"
-        # Update library cache
-        sudo ldconfig
-      else
-        log "⚠️ libinput upgrade failed, will attempt Hyprland build anyway"
-      fi
-    fi
+# Idle configuration
+exec swayidle -w \
+    timeout 300 'swaylock -f -c 000000' \
+    timeout 600 'swaymsg "output * dpms off"' \
+    resume 'swaymsg "output * dpms on"' \
+    before-sleep 'swaylock -f -c 000000'
 
-    cd /tmp
-    rm -rf "$LIBINPUT_BUILD_DIR"
-    set -u
-  fi
-
-  # Temporarily disable unbound variable check for Hyprland build
-  set +u
-  TEMP_BUILD_DIR=$(mktemp -d)
-
-  # Step 1: Build and install hyprwayland-scanner (required by hyprutils and aquamarine)
-  log "Building hyprwayland-scanner (Hyprland dependency 1/4)…"
-  cd "$TEMP_BUILD_DIR"
-  if git clone https://github.com/hyprwm/hyprwayland-scanner 2>/dev/null; then
-    cd hyprwayland-scanner
-    if cmake -DCMAKE_INSTALL_PREFIX=/usr -B build && cmake --build build -j`nproc` && sudo cmake --install build; then
-      log "✅ hyprwayland-scanner installed successfully"
-    else
-      log "⚠️ hyprwayland-scanner build failed, Hyprland installation may fail"
-    fi
-  fi
-
-  # Step 2: Build and install hyprutils (required by aquamarine)
-  log "Building hyprutils (Hyprland dependency 2/4)…"
-  cd "$TEMP_BUILD_DIR"
-  if git clone https://github.com/hyprwm/hyprutils 2>/dev/null; then
-    cd hyprutils
-    # Disable tests to avoid C++23 <print> header requirement
-    if cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_TESTING=OFF -B build && cmake --build build -j`nproc` && sudo cmake --install build; then
-      log "✅ hyprutils installed successfully"
-    else
-      log "⚠️ hyprutils build failed, Hyprland installation may fail"
-    fi
-  fi
-
-  # Step 3: Build and install aquamarine (required by Hyprland)
-  log "Building aquamarine (Hyprland dependency 3/4)…"
-  cd "$TEMP_BUILD_DIR"
-  if git clone https://github.com/hyprwm/aquamarine 2>/dev/null; then
-    cd aquamarine
-    if cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -B build && cmake --build build -j`nproc` && sudo cmake --install build; then
-      log "✅ aquamarine installed successfully"
-    else
-      log "⚠️ aquamarine build failed, Hyprland installation may fail"
-    fi
-  fi
-
-  # Step 4: Build and install Hyprland
-  log "Building Hyprland from source (4/4, may take 5-10 minutes)…"
-  cd "$TEMP_BUILD_DIR"
-  if git clone --recursive https://github.com/hyprwm/Hyprland 2>/dev/null; then
-    cd Hyprland
-    # Build with Nvidia support
-    if make all && sudo make install; then
-      log "✅ Hyprland built and installed successfully"
-
-      # Create desktop session file for login screen
-      sudo tee /usr/share/wayland-sessions/hyprland.desktop >/dev/null << 'DESKTOP_EOF'
-[Desktop Entry]
-Name=Hyprland
-Comment=An intelligent dynamic tiling Wayland compositor
-Exec=Hyprland
-Type=Application
-DESKTOP_EOF
-
-      log "✅ Hyprland session file created at /usr/share/wayland-sessions/hyprland.desktop"
-    else
-      log "⚠️ Hyprland build failed. Check logs for details"
-    fi
-  else
-    log "⚠️ Failed to clone Hyprland repository"
-  fi
-
-  # Cleanup
-  cd /tmp
-  rm -rf "$TEMP_BUILD_DIR"
-  # Re-enable unbound variable check
-  set -u
-
-  # Create default config
-  sudo -u "$REAL_USER" mkdir -p "$REAL_HOME/.config/hypr"
-  if [[ ! -f "$REAL_HOME/.config/hypr/hyprland.conf" ]]; then
-    log "Creating default Hyprland config with Nvidia optimizations…"
-    sudo -u "$REAL_USER" cat > "$REAL_HOME/.config/hypr/hyprland.conf" << 'EOF'
-# Hyprland Configuration with Nvidia Support
-
-# Environment variables for Nvidia
-env = LIBVA_DRIVER_NAME,nvidia
-env = XDG_SESSION_TYPE,wayland
-env = GBM_BACKEND,nvidia-drm
-env = __GLX_VENDOR_LIBRARY_NAME,nvidia
-env = WLR_NO_HARDWARE_CURSORS,1
-
-# Monitor configuration
-monitor=,preferred,auto,1
-
-# Execute apps at launch
-exec-once = waybar
-exec-once = dunst
-exec-once = swayidle -w timeout 300 'swaylock -f -c 000000' timeout 600 'hyprctl dispatch dpms off' resume 'hyprctl dispatch dpms on'
-
-# Input configuration
-input {
-    kb_layout = us
-    follow_mouse = 1
-    touchpad {
-        natural_scroll = false
-    }
-    sensitivity = 0
-}
-
-# General settings
-general {
-    gaps_in = 5
-    gaps_out = 10
-    border_size = 2
-    col.active_border = rgba(33ccffee) rgba(00ff99ee) 45deg
-    col.inactive_border = rgba(595959aa)
-    layout = dwindle
-}
-
-# Decoration
-decoration {
-    rounding = 5
-    blur {
-        enabled = true
-        size = 3
-        passes = 1
-    }
-    drop_shadow = true
-    shadow_range = 4
-    shadow_render_power = 3
-    col.shadow = rgba(1a1a1aee)
-}
-
-# Animations
-animations {
-    enabled = true
-    bezier = myBezier, 0.05, 0.9, 0.1, 1.05
-    animation = windows, 1, 7, myBezier
-    animation = windowsOut, 1, 7, default, popin 80%
-    animation = border, 1, 10, default
-    animation = fade, 1, 7, default
-    animation = workspaces, 1, 6, default
-}
-
-# Layouts
-dwindle {
-    pseudotile = true
-    preserve_split = true
+# Status bar
+bar {
+    swaybar_command waybar
 }
 
 # Key bindings
-$mainMod = SUPER
+bindsym $mod+Return exec $term
+bindsym $mod+d exec $menu
+bindsym $mod+Shift+q kill
+bindsym $mod+Shift+c reload
+bindsym $mod+Shift+e exec swaynag -t warning -m 'Exit sway?' -b 'Yes' 'swaymsg exit'
+bindsym $mod+l exec swaylock -f -c 000000
 
-bind = $mainMod, Return, exec, kitty
-bind = $mainMod, Q, killactive,
-bind = $mainMod, M, exit,
-bind = $mainMod, E, exec, thunar
-bind = $mainMod, V, togglefloating,
-bind = $mainMod, D, exec, wofi --show drun
-bind = $mainMod, P, pseudo,
-bind = $mainMod, J, togglesplit,
-bind = $mainMod, L, exec, swaylock -f -c 000000
+# Moving around
+bindsym $mod+Left focus left
+bindsym $mod+Down focus down
+bindsym $mod+Up focus up
+bindsym $mod+Right focus right
 
-# Move focus with mainMod + arrow keys
-bind = $mainMod, left, movefocus, l
-bind = $mainMod, right, movefocus, r
-bind = $mainMod, up, movefocus, u
-bind = $mainMod, down, movefocus, d
+# Move focused window
+bindsym $mod+Shift+Left move left
+bindsym $mod+Shift+Down move down
+bindsym $mod+Shift+Up move up
+bindsym $mod+Shift+Right move right
 
-# Switch workspaces with mainMod + [0-9]
-bind = $mainMod, 1, workspace, 1
-bind = $mainMod, 2, workspace, 2
-bind = $mainMod, 3, workspace, 3
-bind = $mainMod, 4, workspace, 4
-bind = $mainMod, 5, workspace, 5
-bind = $mainMod, 6, workspace, 6
-bind = $mainMod, 7, workspace, 7
-bind = $mainMod, 8, workspace, 8
-bind = $mainMod, 9, workspace, 9
-bind = $mainMod, 0, workspace, 10
+# Workspaces
+bindsym $mod+1 workspace number 1
+bindsym $mod+2 workspace number 2
+bindsym $mod+3 workspace number 3
+bindsym $mod+4 workspace number 4
+bindsym $mod+5 workspace number 5
+bindsym $mod+6 workspace number 6
+bindsym $mod+7 workspace number 7
+bindsym $mod+8 workspace number 8
+bindsym $mod+9 workspace number 9
+bindsym $mod+0 workspace number 10
 
-# Move active window to workspace with mainMod + SHIFT + [0-9]
-bind = $mainMod SHIFT, 1, movetoworkspace, 1
-bind = $mainMod SHIFT, 2, movetoworkspace, 2
-bind = $mainMod SHIFT, 3, movetoworkspace, 3
-bind = $mainMod SHIFT, 4, movetoworkspace, 4
-bind = $mainMod SHIFT, 5, movetoworkspace, 5
-bind = $mainMod SHIFT, 6, movetoworkspace, 6
-bind = $mainMod SHIFT, 7, movetoworkspace, 7
-bind = $mainMod SHIFT, 8, movetoworkspace, 8
-bind = $mainMod SHIFT, 9, movetoworkspace, 9
-bind = $mainMod SHIFT, 0, movetoworkspace, 10
+# Move to workspace
+bindsym $mod+Shift+1 move container to workspace number 1
+bindsym $mod+Shift+2 move container to workspace number 2
+bindsym $mod+Shift+3 move container to workspace number 3
+bindsym $mod+Shift+4 move container to workspace number 4
+bindsym $mod+Shift+5 move container to workspace number 5
+bindsym $mod+Shift+6 move container to workspace number 6
+bindsym $mod+Shift+7 move container to workspace number 7
+bindsym $mod+Shift+8 move container to workspace number 8
+bindsym $mod+Shift+9 move container to workspace number 9
+bindsym $mod+Shift+0 move container to workspace number 10
 
-# Scroll through workspaces with mainMod + scroll
-bind = $mainMod, mouse_down, workspace, e+1
-bind = $mainMod, mouse_up, workspace, e-1
+# Layout
+bindsym $mod+b splith
+bindsym $mod+v splitv
+bindsym $mod+s layout stacking
+bindsym $mod+w layout tabbed
+bindsym $mod+e layout toggle split
+bindsym $mod+f fullscreen
+bindsym $mod+Shift+space floating toggle
+bindsym $mod+space focus mode_toggle
 
-# Move/resize windows with mainMod + LMB/RMB
-bindm = $mainMod, mouse:272, movewindow
-bindm = $mainMod, mouse:273, resizewindow
+# Resizing
+mode "resize" {
+    bindsym Left resize shrink width 10px
+    bindsym Down resize grow height 10px
+    bindsym Up resize shrink height 10px
+    bindsym Right resize grow width 10px
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+bindsym $mod+r mode "resize"
 
-# Screenshot
-bind = , Print, exec, grim -g "$(slurp)" - | wl-copy
+# Screenshots
+bindsym Print exec grim -g "$(slurp)" - | wl-copy
 
-# Volume control
-bind = , XF86AudioRaiseVolume, exec, pactl set-sink-volume @DEFAULT_SINK@ +5%
-bind = , XF86AudioLowerVolume, exec, pactl set-sink-volume @DEFAULT_SINK@ -5%
-bind = , XF86AudioMute, exec, pactl set-sink-mute @DEFAULT_SINK@ toggle
+# Volume
+bindsym XF86AudioRaiseVolume exec pactl set-sink-volume @DEFAULT_SINK@ +5%
+bindsym XF86AudioLowerVolume exec pactl set-sink-volume @DEFAULT_SINK@ -5%
+bindsym XF86AudioMute exec pactl set-sink-mute @DEFAULT_SINK@ toggle
 
-# Brightness control
-bind = , XF86MonBrightnessUp, exec, brightnessctl set +5%
-bind = , XF86MonBrightnessDown, exec, brightnessctl set 5%-
+# Brightness
+bindsym XF86MonBrightnessUp exec brightnessctl set +5%
+bindsym XF86MonBrightnessDown exec brightnessctl set 5%-
 
-# Media controls
-bind = , XF86AudioPlay, exec, playerctl play-pause
-bind = , XF86AudioNext, exec, playerctl next
-bind = , XF86AudioPrev, exec, playerctl previous
+# Media
+bindsym XF86AudioPlay exec playerctl play-pause
+bindsym XF86AudioNext exec playerctl next
+bindsym XF86AudioPrev exec playerctl previous
 EOF
+    sudo chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.config/sway/config"
   fi
 
-  log "✅ Hyprland installed with Nvidia support"
+  log "✅ Sway installed - available at login screen"
 fi
 
 # ---------- Omarchy-inspired terminal tools ----------
