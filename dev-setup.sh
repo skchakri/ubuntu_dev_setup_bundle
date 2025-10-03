@@ -292,7 +292,7 @@ if ! need_cmd Hyprland; then
   if git clone https://github.com/hyprwm/hyprutils 2>/dev/null; then
     cd hyprutils
     # Disable tests to avoid C++23 <print> header requirement
-    if cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DNO_TESTS=true -B build && cmake --build build -j`nproc` && sudo cmake --install build; then
+    if cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_TESTING=OFF -B build && cmake --build build -j`nproc` && sudo cmake --install build; then
       log "✅ hyprutils installed successfully"
     else
       log "⚠️ hyprutils build failed, Hyprland installation may fail"
