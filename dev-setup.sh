@@ -222,7 +222,7 @@ if ! need_cmd Hyprland; then
     libinput-bin libinput-dev libxcb-composite0-dev libavutil-dev libavcodec-dev \
     libavformat-dev libxcb-ewmh2 libxcb-ewmh-dev libxcb-present-dev libxcb-icccm4-dev \
     libxcb-render-util0-dev libxcb-res0-dev libxcb-xinput-dev xdg-desktop-portal-wlr \
-    libtomlplusplus3 || true
+    libtomlplusplus3 libpugixml-dev || true
 
   # Upgrade CMake if needed (Hyprland requires 3.30+)
   CMAKE_VERSION=$(cmake --version 2>/dev/null | head -n1 | grep -oP '\d+\.\d+' | head -1 || echo "0")
@@ -238,13 +238,37 @@ if ! need_cmd Hyprland; then
     sudo apt-get install -y cmake || true
   fi
 
-  # Build and install Hyprland from source
-  log "Building Hyprland from source (this may take 5-10 minutes)…"
   # Temporarily disable unbound variable check for Hyprland build
   set +u
   TEMP_BUILD_DIR=$(mktemp -d)
-  cd "$TEMP_BUILD_DIR"
 
+  # Step 1: Build and install hyprwayland-scanner (required by aquamarine)
+  log "Building hyprwayland-scanner (Hyprland dependency 1/3)…"
+  cd "$TEMP_BUILD_DIR"
+  if git clone https://github.com/hyprwm/hyprwayland-scanner 2>/dev/null; then
+    cd hyprwayland-scanner
+    if cmake -DCMAKE_INSTALL_PREFIX=/usr -B build && cmake --build build -j`nproc` && sudo cmake --install build; then
+      log "✅ hyprwayland-scanner installed successfully"
+    else
+      log "⚠️ hyprwayland-scanner build failed, Hyprland installation may fail"
+    fi
+  fi
+
+  # Step 2: Build and install aquamarine (required by Hyprland)
+  log "Building aquamarine (Hyprland dependency 2/3)…"
+  cd "$TEMP_BUILD_DIR"
+  if git clone https://github.com/hyprwm/aquamarine 2>/dev/null; then
+    cd aquamarine
+    if cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -B build && cmake --build build -j`nproc` && sudo cmake --install build; then
+      log "✅ aquamarine installed successfully"
+    else
+      log "⚠️ aquamarine build failed, Hyprland installation may fail"
+    fi
+  fi
+
+  # Step 3: Build and install Hyprland
+  log "Building Hyprland from source (3/3, may take 5-10 minutes)…"
+  cd "$TEMP_BUILD_DIR"
   if git clone --recursive https://github.com/hyprwm/Hyprland 2>/dev/null; then
     cd Hyprland
     # Build with Nvidia support
@@ -262,12 +286,13 @@ DESKTOP_EOF
 
       log "✅ Hyprland session file created at /usr/share/wayland-sessions/hyprland.desktop"
     else
-      log "⚠️ Hyprland build failed. Check /tmp/hyprland-build.log for details"
+      log "⚠️ Hyprland build failed. Check logs for details"
     fi
   else
     log "⚠️ Failed to clone Hyprland repository"
   fi
 
+  # Cleanup
   cd /tmp
   rm -rf "$TEMP_BUILD_DIR"
   # Re-enable unbound variable check
