@@ -21,6 +21,8 @@ export DEBIAN_FRONTEND=noninteractive
 
 # ---------- APT base ----------
 log "Updating APT and installing base packages…"
+# Clean up any broken MongoDB repositories from previous runs
+sudo rm -f /etc/apt/sources.list.d/mongodb-org-*.list 2>/dev/null || true
 sudo apt-get update -y
 sudo apt-get upgrade -y || true
 
@@ -164,9 +166,14 @@ fi
 # ---------- Microsoft Teams ----------
 if ! need_cmd teams; then
   log "Installing Microsoft Teams…"
-  wget -q https://go.microsoft.com/fwlink/p/?LinkID=2112886 -O /tmp/teams.deb
-  sudo apt-get install -y /tmp/teams.deb || sudo apt-get -f install -y && sudo apt-get install -y /tmp/teams.deb || true
-  rm -f /tmp/teams.deb
+  if wget -q --timeout=30 https://go.microsoft.com/fwlink/p/?LinkID=2112886 -O /tmp/teams.deb 2>/dev/null && [[ -f /tmp/teams.deb ]]; then
+    sudo apt-get install -y /tmp/teams.deb || sudo apt-get -f install -y && sudo apt-get install -y /tmp/teams.deb || true
+    rm -f /tmp/teams.deb
+    log "✅ Microsoft Teams installed successfully"
+  else
+    log "⚠️ Microsoft Teams download failed or timed out, skipping..."
+    rm -f /tmp/teams.deb
+  fi
 fi
 
 # ---------- Firefox ----------
