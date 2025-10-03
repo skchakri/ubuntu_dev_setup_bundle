@@ -272,7 +272,31 @@ if need_cmd snap; then
   sudo snap install slack --classic || true
   sudo snap install notepad-plus-plus || true
   sudo snap install android-studio --classic || true
+
+  # Install Claude Code extension for VS Code
+  if need_cmd code; then
+    log "Installing Claude Code extension for VS Code…"
+    sudo -u "$REAL_USER" code --install-extension anthropic.claude-code 2>/dev/null || true
+  fi
 fi
+
+# ---------- Clone iCentris repositories ----------
+PLATFORM_DIR="$REAL_HOME/platform"
+if [[ ! -d "$PLATFORM_DIR" ]]; then
+  log "Creating platform directory…"
+  sudo -u "$REAL_USER" mkdir -p "$PLATFORM_DIR"
+fi
+
+log "Cloning iCentris repositories to ~/platform…"
+REPOS=("pyr" "etl" "vibe-stream" "partyorder" "vibe-ingress" "icentris-cms" "icentris-rules" "zevents")
+for repo in "${REPOS[@]}"; do
+  if [[ ! -d "$PLATFORM_DIR/$repo" ]]; then
+    log "Cloning $repo…"
+    sudo -u "$REAL_USER" git clone "https://github.com/iCentris/$repo.git" "$PLATFORM_DIR/$repo" 2>/dev/null || log "⚠️ Failed to clone $repo (may be private or not found)"
+  else
+    log "✅ $repo already exists, skipping…"
+  fi
+done
 
 # ---------- Shell default (optional) ----------
 if need_cmd zsh; then
@@ -282,4 +306,4 @@ if need_cmd zsh; then
   fi
 fi
 
-log "✅ Setup complete. Installed:\n- Core tools, Docker\n- Ruby ${DEFAULT_RUBY} (RVM) + Rails\n- Node LTS (nvm) + Corepack\n- DBeaver CE, MongoDB shell\n- Chrome, Firefox, Zoom, Teams\n- VS Code, Slack, Notepad++, Android Studio\n- Sway Wayland compositor + Waybar + Wofi\n- Enhanced terminal: Zoxide, Starship, LazyGit, LazyDocker, Eza\n- Terminal apps: Terminator, gedit\n- Programming fonts: JetBrains Mono, Fira Code, Cascadia Code\n\n🔄 IMPORTANT: Log out and back in for:\n   • Docker group permissions (required for LazyDocker)\n   • nvm PATH configuration\n   • Shell enhancements (zoxide, starship)\n\n🪟 To use Sway: Select 'Sway' from login screen session options.\n\n⚠️ If any downloads failed, re-run the script after reboot."
+log "✅ Setup complete. Installed:\n- Core tools, Docker\n- Ruby ${DEFAULT_RUBY} (RVM) + Rails\n- Node LTS (nvm) + Corepack\n- DBeaver CE, MongoDB shell\n- Chrome, Firefox, Zoom, Teams\n- VS Code with Claude Code extension, Slack, Notepad++, Android Studio\n- Sway Wayland compositor + Waybar + Wofi\n- Enhanced terminal: Zoxide, Starship, LazyGit, LazyDocker, Eza\n- Terminal apps: Terminator, gedit\n- Programming fonts: JetBrains Mono, Fira Code, Cascadia Code\n- iCentris repositories cloned to ~/platform\n\n🔄 IMPORTANT: Log out and back in for:\n   • Docker group permissions (required for LazyDocker)\n   • nvm PATH configuration\n   • Shell enhancements (zoxide, starship)\n\n🪟 To use Sway: Select 'Sway' from login screen session options.\n\n⚠️ If any downloads failed, re-run the script after reboot."
