@@ -182,10 +182,241 @@ if ! need_cmd firefox; then
   sudo apt-get install -y firefox
 fi
 
-# ---------- Sway Wayland Compositor (Hyprland alternative) ----------
-if ! need_cmd sway; then
-  log "Installing Sway Wayland compositor + supporting tools…"
-  sudo apt-get install -y   sway waybar wofi   swaylock swayidle   foot alacritty   grim slurp wl-clipboard   light playerctl   brightnessctl pulseaudio-utils
+# ---------- WhatsApp ----------
+if ! snap list whatsapp-linux-app >/dev/null 2>&1; then
+  log "Installing WhatsApp…"
+  sudo snap install whatsapp-linux-app || true
+fi
+
+# ---------- YouTube (FreeTube) ----------
+if ! snap list freetube >/dev/null 2>&1; then
+  log "Installing FreeTube (YouTube app)…"
+  sudo snap install freetube || true
+fi
+
+# ---------- Signal (Secure Messaging) ----------
+if ! snap list signal-desktop >/dev/null 2>&1; then
+  log "Installing Signal…"
+  sudo snap install signal-desktop || true
+fi
+
+# ---------- Hyprland Wayland Compositor (with Nvidia support) ----------
+if ! need_cmd Hyprland; then
+  log "Installing Hyprland Wayland compositor + supporting tools…"
+
+  # Install supporting Wayland tools first
+  sudo apt-get install -y \
+    waybar wofi kitty foot alacritty \
+    grim slurp wl-clipboard \
+    swaylock swayidle \
+    light playerctl brightnessctl pulseaudio-utils \
+    dunst libnotify-bin || true
+
+  # Install Hyprland build dependencies
+  sudo apt-get install -y \
+    meson wget build-essential ninja-build cmake-extras cmake gettext gettext-base \
+    fontconfig libfontconfig-dev libffi-dev libxml2-dev libdrm-dev libxkbcommon-x11-dev \
+    libxkbregistry-dev libxkbcommon-dev libpixman-1-dev libudev-dev libseat-dev seatd \
+    libxcb-dri3-dev libvulkan-dev libvulkan-volk-dev vulkan-utility-libraries-dev \
+    libegl-dev libgles2 libegl1-mesa-dev glslang-tools \
+    libinput-bin libinput-dev libxcb-composite0-dev libavutil-dev libavcodec-dev \
+    libavformat-dev libxcb-ewmh2 libxcb-ewmh-dev libxcb-present-dev libxcb-icccm4-dev \
+    libxcb-render-util0-dev libxcb-res0-dev libxcb-xinput-dev xdg-desktop-portal-wlr \
+    libtomlplusplus3 || true
+
+  # Upgrade CMake if needed (Hyprland requires 3.30+)
+  CMAKE_VERSION=$(cmake --version 2>/dev/null | head -n1 | grep -oP '\d+\.\d+' | head -1 || echo "0")
+  if ! awk -v ver="$CMAKE_VERSION" 'BEGIN{exit(!(ver>=3.30))}' 2>/dev/null; then
+    log "Upgrading CMake to latest version (required for Hyprland)…"
+    # Remove old cmake
+    sudo apt-get remove -y cmake cmake-data 2>/dev/null || true
+
+    # Install latest CMake from Kitware's repository
+    wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
+    echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
+    sudo apt-get update -y
+    sudo apt-get install -y cmake || true
+  fi
+
+  # Build and install Hyprland from source
+  log "Building Hyprland from source (this may take 5-10 minutes)…"
+  # Temporarily disable unbound variable check for Hyprland build
+  set +u
+  TEMP_BUILD_DIR=$(mktemp -d)
+  cd "$TEMP_BUILD_DIR"
+
+  if git clone --recursive https://github.com/hyprwm/Hyprland 2>/dev/null; then
+    cd Hyprland
+    # Build with Nvidia support
+    if make all && sudo make install; then
+      log "✅ Hyprland built and installed successfully"
+
+      # Create desktop session file for login screen
+      sudo tee /usr/share/wayland-sessions/hyprland.desktop >/dev/null << 'DESKTOP_EOF'
+[Desktop Entry]
+Name=Hyprland
+Comment=An intelligent dynamic tiling Wayland compositor
+Exec=Hyprland
+Type=Application
+DESKTOP_EOF
+
+      log "✅ Hyprland session file created at /usr/share/wayland-sessions/hyprland.desktop"
+    else
+      log "⚠️ Hyprland build failed. Check /tmp/hyprland-build.log for details"
+    fi
+  else
+    log "⚠️ Failed to clone Hyprland repository"
+  fi
+
+  cd /tmp
+  rm -rf "$TEMP_BUILD_DIR"
+  # Re-enable unbound variable check
+  set -u
+
+  # Create default config
+  sudo -u "$REAL_USER" mkdir -p "$REAL_HOME/.config/hypr"
+  if [[ ! -f "$REAL_HOME/.config/hypr/hyprland.conf" ]]; then
+    log "Creating default Hyprland config with Nvidia optimizations…"
+    sudo -u "$REAL_USER" cat > "$REAL_HOME/.config/hypr/hyprland.conf" << 'EOF'
+# Hyprland Configuration with Nvidia Support
+
+# Environment variables for Nvidia
+env = LIBVA_DRIVER_NAME,nvidia
+env = XDG_SESSION_TYPE,wayland
+env = GBM_BACKEND,nvidia-drm
+env = __GLX_VENDOR_LIBRARY_NAME,nvidia
+env = WLR_NO_HARDWARE_CURSORS,1
+
+# Monitor configuration
+monitor=,preferred,auto,1
+
+# Execute apps at launch
+exec-once = waybar
+exec-once = dunst
+exec-once = swayidle -w timeout 300 'swaylock -f -c 000000' timeout 600 'hyprctl dispatch dpms off' resume 'hyprctl dispatch dpms on'
+
+# Input configuration
+input {
+    kb_layout = us
+    follow_mouse = 1
+    touchpad {
+        natural_scroll = false
+    }
+    sensitivity = 0
+}
+
+# General settings
+general {
+    gaps_in = 5
+    gaps_out = 10
+    border_size = 2
+    col.active_border = rgba(33ccffee) rgba(00ff99ee) 45deg
+    col.inactive_border = rgba(595959aa)
+    layout = dwindle
+}
+
+# Decoration
+decoration {
+    rounding = 5
+    blur {
+        enabled = true
+        size = 3
+        passes = 1
+    }
+    drop_shadow = true
+    shadow_range = 4
+    shadow_render_power = 3
+    col.shadow = rgba(1a1a1aee)
+}
+
+# Animations
+animations {
+    enabled = true
+    bezier = myBezier, 0.05, 0.9, 0.1, 1.05
+    animation = windows, 1, 7, myBezier
+    animation = windowsOut, 1, 7, default, popin 80%
+    animation = border, 1, 10, default
+    animation = fade, 1, 7, default
+    animation = workspaces, 1, 6, default
+}
+
+# Layouts
+dwindle {
+    pseudotile = true
+    preserve_split = true
+}
+
+# Key bindings
+$mainMod = SUPER
+
+bind = $mainMod, Return, exec, kitty
+bind = $mainMod, Q, killactive,
+bind = $mainMod, M, exit,
+bind = $mainMod, E, exec, thunar
+bind = $mainMod, V, togglefloating,
+bind = $mainMod, D, exec, wofi --show drun
+bind = $mainMod, P, pseudo,
+bind = $mainMod, J, togglesplit,
+bind = $mainMod, L, exec, swaylock -f -c 000000
+
+# Move focus with mainMod + arrow keys
+bind = $mainMod, left, movefocus, l
+bind = $mainMod, right, movefocus, r
+bind = $mainMod, up, movefocus, u
+bind = $mainMod, down, movefocus, d
+
+# Switch workspaces with mainMod + [0-9]
+bind = $mainMod, 1, workspace, 1
+bind = $mainMod, 2, workspace, 2
+bind = $mainMod, 3, workspace, 3
+bind = $mainMod, 4, workspace, 4
+bind = $mainMod, 5, workspace, 5
+bind = $mainMod, 6, workspace, 6
+bind = $mainMod, 7, workspace, 7
+bind = $mainMod, 8, workspace, 8
+bind = $mainMod, 9, workspace, 9
+bind = $mainMod, 0, workspace, 10
+
+# Move active window to workspace with mainMod + SHIFT + [0-9]
+bind = $mainMod SHIFT, 1, movetoworkspace, 1
+bind = $mainMod SHIFT, 2, movetoworkspace, 2
+bind = $mainMod SHIFT, 3, movetoworkspace, 3
+bind = $mainMod SHIFT, 4, movetoworkspace, 4
+bind = $mainMod SHIFT, 5, movetoworkspace, 5
+bind = $mainMod SHIFT, 6, movetoworkspace, 6
+bind = $mainMod SHIFT, 7, movetoworkspace, 7
+bind = $mainMod SHIFT, 8, movetoworkspace, 8
+bind = $mainMod SHIFT, 9, movetoworkspace, 9
+bind = $mainMod SHIFT, 0, movetoworkspace, 10
+
+# Scroll through workspaces with mainMod + scroll
+bind = $mainMod, mouse_down, workspace, e+1
+bind = $mainMod, mouse_up, workspace, e-1
+
+# Move/resize windows with mainMod + LMB/RMB
+bindm = $mainMod, mouse:272, movewindow
+bindm = $mainMod, mouse:273, resizewindow
+
+# Screenshot
+bind = , Print, exec, grim -g "$(slurp)" - | wl-copy
+
+# Volume control
+bind = , XF86AudioRaiseVolume, exec, pactl set-sink-volume @DEFAULT_SINK@ +5%
+bind = , XF86AudioLowerVolume, exec, pactl set-sink-volume @DEFAULT_SINK@ -5%
+bind = , XF86AudioMute, exec, pactl set-sink-mute @DEFAULT_SINK@ toggle
+
+# Brightness control
+bind = , XF86MonBrightnessUp, exec, brightnessctl set +5%
+bind = , XF86MonBrightnessDown, exec, brightnessctl set 5%-
+
+# Media controls
+bind = , XF86AudioPlay, exec, playerctl play-pause
+bind = , XF86AudioNext, exec, playerctl next
+bind = , XF86AudioPrev, exec, playerctl previous
+EOF
+  fi
+
+  log "✅ Hyprland installed with Nvidia support"
 fi
 
 # ---------- Omarchy-inspired terminal tools ----------
@@ -273,10 +504,54 @@ if need_cmd snap; then
   sudo snap install notepad-plus-plus || true
   sudo snap install android-studio --classic || true
 
-  # Install Claude Code extension for VS Code
+  # Install VS Code extensions
   if need_cmd code; then
-    log "Installing Claude Code extension for VS Code…"
-    sudo -u "$REAL_USER" code --install-extension anthropic.claude-code 2>/dev/null || true
+    log "Installing VS Code extensions…"
+    VSCODE_EXTENSIONS=(
+      "alefragnani.project-manager"
+      "andrepimenta.claude-code-chat"
+      "anthropic.claude-code"
+      "bung87.rails"
+      "bung87.vscode-gemfile"
+      "castwide.solargraph"
+      "christian-kohler.path-intellisense"
+      "codeflow-studio.claude-code-extension"
+      "codeontherocks.claude-config"
+      "codezombiech.gitignore"
+      "diemasmichiels.emulate"
+      "donjayamanne.git-extension-pack"
+      "donjayamanne.githistory"
+      "eamodio.gitlens"
+      "github.copilot"
+      "github.copilot-chat"
+      "github.vscode-pull-request-github"
+      "gruntfuggly.todo-tree"
+      "huizhou.githd"
+      "kaiwood.endwise"
+      "karunamurti.haml"
+      "manuelpuyol.erb-linter"
+      "mhutchie.git-graph"
+      "ms-azuretools.vscode-containers"
+      "ms-kubernetes-tools.vscode-kubernetes-tools"
+      "ms-vscode-remote.remote-containers"
+      "oracle.oracle-java"
+      "redhat.vscode-yaml"
+      "riey.erb"
+      "shopify.ruby-extensions-pack"
+      "shopify.ruby-lsp"
+      "sianglim.slim"
+      "sorbet.sorbet-vscode-extension"
+      "tal7aouy.rainbow-bracket"
+      "vscjava.vscode-gradle"
+      "waderyan.gitblame"
+      "zirkelc.claude-terminal-runner"
+      "ziyasal.vscode-open-in-github"
+    )
+
+    for ext in "${VSCODE_EXTENSIONS[@]}"; do
+      sudo -u "$REAL_USER" code --install-extension "$ext" 2>/dev/null || log "⚠️ Failed to install $ext"
+    done
+    log "✅ VS Code extensions installation complete"
   fi
 fi
 
@@ -292,7 +567,7 @@ REPOS=("pyr" "etl" "vibe-stream" "partyorder" "vibe-ingress" "icentris-cms" "ice
 for repo in "${REPOS[@]}"; do
   if [[ ! -d "$PLATFORM_DIR/$repo" ]]; then
     log "Cloning $repo…"
-    sudo -u "$REAL_USER" git clone "https://github.com/iCentris/$repo.git" "$PLATFORM_DIR/$repo" 2>/dev/null || log "⚠️ Failed to clone $repo (may be private or not found)"
+    sudo -u "$REAL_USER" git clone "git@github.com:iCentris/$repo.git" "$PLATFORM_DIR/$repo" 2>/dev/null || log "⚠️ Failed to clone $repo (may be private or not found)"
   else
     log "✅ $repo already exists, skipping…"
   fi
@@ -306,4 +581,4 @@ if need_cmd zsh; then
   fi
 fi
 
-log "✅ Setup complete. Installed:\n- Core tools, Docker\n- Ruby ${DEFAULT_RUBY} (RVM) + Rails\n- Node LTS (nvm) + Corepack\n- DBeaver CE, MongoDB shell\n- Chrome, Firefox, Zoom, Teams\n- VS Code with Claude Code extension, Slack, Notepad++, Android Studio\n- Sway Wayland compositor + Waybar + Wofi\n- Enhanced terminal: Zoxide, Starship, LazyGit, LazyDocker, Eza\n- Terminal apps: Terminator, gedit\n- Programming fonts: JetBrains Mono, Fira Code, Cascadia Code\n- iCentris repositories cloned to ~/platform\n\n🔄 IMPORTANT: Log out and back in for:\n   • Docker group permissions (required for LazyDocker)\n   • nvm PATH configuration\n   • Shell enhancements (zoxide, starship)\n\n🪟 To use Sway: Select 'Sway' from login screen session options.\n\n⚠️ If any downloads failed, re-run the script after reboot."
+log "✅ Setup complete. Installed:\n- Core tools, Docker\n- Ruby ${DEFAULT_RUBY} (RVM) + Rails\n- Node LTS (nvm) + Corepack\n- DBeaver CE, MongoDB shell\n- Browsers: Chrome, Firefox\n- Communication: Zoom, Teams, WhatsApp, Signal\n- Media: FreeTube (YouTube)\n- VS Code with Claude Code extension, Slack, Notepad++, Android Studio\n- Hyprland Wayland compositor + Waybar + Wofi (with Nvidia support)\n- Enhanced terminal: Zoxide, Starship, LazyGit, LazyDocker, Eza\n- Terminal apps: Terminator, gedit\n- Programming fonts: JetBrains Mono, Fira Code, Cascadia Code\n- iCentris repositories cloned to ~/platform\n\n🔄 IMPORTANT: Log out and back in for:\n   • Docker group permissions (required for LazyDocker)\n   • nvm PATH configuration\n   • Shell enhancements (zoxide, starship)\n\n🪟 To use Hyprland: Select 'Hyprland' from login screen session options.\n\n⚠️ If any downloads failed, re-run the script after reboot."
