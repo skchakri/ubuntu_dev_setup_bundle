@@ -107,9 +107,20 @@ fi
 # ---------- DBeaver CE ----------
 if ! need_cmd dbeaver; then
   log "Installing DBeaver CE…"
-  sudo add-apt-repository -y ppa:dbeaver-team/dbeaver-ce
-  sudo apt-get update -y
-  sudo apt-get install -y dbeaver-ce
+  # Download and install DBeaver CE directly from GitHub releases
+  DBEAVER_VERSION=$(curl -s "https://api.github.com/repos/dbeaver/dbeaver/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' 2>/dev/null || echo "")
+  if [[ -n "${DBEAVER_VERSION:-}" ]]; then
+    wget -q "https://github.com/dbeaver/dbeaver/releases/latest/download/dbeaver-ce_${DBEAVER_VERSION}_amd64.deb" -O /tmp/dbeaver.deb 2>/dev/null
+    if [[ -f /tmp/dbeaver.deb ]]; then
+      sudo apt-get install -y /tmp/dbeaver.deb || sudo apt-get -f install -y && sudo apt-get install -y /tmp/dbeaver.deb || true
+      rm -f /tmp/dbeaver.deb
+      log "✅ DBeaver CE installed successfully"
+    else
+      log "⚠️ DBeaver download failed, skipping..."
+    fi
+  else
+    log "⚠️ Could not get DBeaver version, skipping..."
+  fi
 fi
 
 # ---------- MongoDB shell client ----------
