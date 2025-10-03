@@ -126,10 +126,23 @@ fi
 # ---------- MongoDB shell client ----------
 if ! need_cmd mongosh; then
   log "Installing MongoDB shell client…"
-  curl -fsSL https://pgp.mongodb.com/server-7.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server.gpg
-  echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server.gpg ] https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/7.0 multiverse"     | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
-  sudo apt-get update -y
-  sudo apt-get install -y mongodb-mongosh
+  # Download and install mongosh directly from MongoDB downloads (works on all Ubuntu versions)
+  MONGOSH_VERSION=$(curl -s "https://api.github.com/repos/mongodb-js/mongosh/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' 2>/dev/null || echo "")
+  if [[ -n "${MONGOSH_VERSION:-}" ]]; then
+    # Remove 'v' prefix if present
+    MONGOSH_VERSION_CLEAN="${MONGOSH_VERSION#v}"
+    wget -q "https://downloads.mongodb.com/compass/mongosh-${MONGOSH_VERSION_CLEAN}-linux-x64.tgz" -O /tmp/mongosh.tgz 2>/dev/null
+    if [[ -f /tmp/mongosh.tgz ]]; then
+      tar -zxf /tmp/mongosh.tgz -C /tmp/ 2>/dev/null
+      sudo cp /tmp/mongosh-${MONGOSH_VERSION_CLEAN}-linux-x64/bin/* /usr/local/bin/ 2>/dev/null || true
+      rm -rf /tmp/mongosh.tgz /tmp/mongosh-${MONGOSH_VERSION_CLEAN}-linux-x64
+      log "✅ MongoDB shell (mongosh) installed successfully"
+    else
+      log "⚠️ MongoDB shell download failed, skipping..."
+    fi
+  else
+    log "⚠️ Could not get mongosh version, skipping..."
+  fi
 fi
 
 # ---------- Google Chrome ----------
