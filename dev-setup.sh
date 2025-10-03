@@ -24,7 +24,7 @@ log "Updating APT and installing base packages…"
 sudo apt-get update -y
 sudo apt-get upgrade -y || true
 
-sudo apt-get install -y   build-essential git curl wget ca-certificates gnupg software-properties-common   unzip zip jq   vim neovim   zsh tmux   fzf ripgrep htop tree   llvm pkg-config   libssl-dev libreadline-dev zlib1g-dev libyaml-dev libffi-dev   libgdbm-dev libdb-dev libncurses5-dev libsqlite3-dev sqlite3   libxml2-dev libxslt1-dev autoconf bison   dnsutils net-tools   apt-transport-https lsb-release
+sudo apt-get install -y   build-essential git curl wget ca-certificates gnupg software-properties-common   unzip zip jq   vim neovim gedit   zsh tmux   fzf ripgrep htop tree   terminator   llvm pkg-config   libssl-dev libreadline-dev zlib1g-dev libyaml-dev libffi-dev   libgdbm-dev libdb-dev libncurses5-dev libsqlite3-dev sqlite3   libxml2-dev libxslt1-dev autoconf bison   dnsutils net-tools   apt-transport-https lsb-release
 
 # ---------- Docker (official repo) ----------
 if ! need_cmd docker; then
@@ -46,17 +46,26 @@ if ! need_cmd rvm; then
   sudo apt-get install -y dirmngr gnupg2
   curl -sSL https://rvm.io/mpapis.asc | gpg --import - || true
   curl -sSL https://rvm.io/pkuczynski.asc | gpg --import - || true
+  # Temporarily disable unbound variable check for RVM installation
+  set +u
   curl -sSL https://get.rvm.io | bash -s stable
   echo 'export PATH="$HOME/.rvm/bin:$PATH"' >> "$REAL_HOME/.bashrc"
   echo '[[ -s "$HOME/.rvm/scripts/rvm" ]] && source "$HOME/.rvm/scripts/rvm"' >> "$REAL_HOME/.bashrc"
   echo '[[ -s "$HOME/.rvm/scripts/rvm" ]] && source "$HOME/.rvm/scripts/rvm"' >> "$REAL_HOME/.zshrc" 2>/dev/null || true
   source "$REAL_HOME/.rvm/scripts/rvm"
+  # Re-enable unbound variable check
+  set -u
 else
+  # Temporarily disable unbound variable check for RVM sourcing
+  set +u
   source "$REAL_HOME/.rvm/scripts/rvm"
+  set -u
   log "RVM already present."
 fi
 
 DEFAULT_RUBY="3.2.2"
+# Temporarily disable unbound variable check for RVM commands
+set +u
 if ! rvm list strings | grep -q "^$DEFAULT_RUBY$"; then
   log "Installing Ruby $DEFAULT_RUBY via RVM…"
   rvm install "$DEFAULT_RUBY"
@@ -69,6 +78,8 @@ fi
 log "Installing baseline global gems…"
 gem update --system
 gem install bundler rails -N
+# Re-enable unbound variable check
+set -u
 
 # ---------- Node.js (nvm) ----------
 if [[ ! -d "$REAL_HOME/.nvm" ]]; then
@@ -166,12 +177,18 @@ fi
 # LazyGit
 if ! need_cmd lazygit; then
   log "Installing LazyGit (terminal git UI)…"
-  LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' 2>/dev/null)
-  if [[ -n "$LAZYGIT_VERSION" ]]; then
-    if curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION#v}_Linux_x86_64.tar.gz" 2>/dev/null; then
-      tar xf lazygit.tar.gz lazygit 2>/dev/null && sudo install lazygit /usr/local/bin 2>/dev/null
-      rm -f lazygit lazygit.tar.gz
-      log "✅ LazyGit installed successfully"
+  LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' 2>/dev/null || echo "")
+  if [[ -n "${LAZYGIT_VERSION:-}" ]]; then
+    # Remove 'v' prefix if present
+    LAZYGIT_VERSION_CLEAN="${LAZYGIT_VERSION#v}"
+    if curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION_CLEAN}_Linux_x86_64.tar.gz" 2>/dev/null; then
+      if tar xf lazygit.tar.gz lazygit 2>/dev/null && sudo install lazygit /usr/local/bin 2>/dev/null; then
+        rm -f lazygit lazygit.tar.gz
+        log "✅ LazyGit installed successfully"
+      else
+        log "⚠️ LazyGit extraction/installation failed, skipping..."
+        rm -f lazygit lazygit.tar.gz
+      fi
     else
       log "⚠️ LazyGit download failed, skipping..."
     fi
@@ -234,4 +251,4 @@ if need_cmd zsh; then
   fi
 fi
 
-log "✅ Setup complete. Installed:\n- Core tools, Docker\n- Ruby ${DEFAULT_RUBY} (RVM) + Rails\n- Node LTS (nvm) + Corepack\n- DBeaver CE, MongoDB shell\n- Chrome, Firefox, Zoom, Teams\n- VS Code, Slack, Notepad++, Android Studio\n- Sway Wayland compositor + Waybar + Wofi\n- Enhanced terminal: Zoxide, Starship, LazyGit, LazyDocker, Eza\n- Programming fonts: JetBrains Mono, Fira Code, Cascadia Code\n\n🔄 IMPORTANT: Log out and back in for:\n   • Docker group permissions (required for LazyDocker)\n   • nvm PATH configuration\n   • Shell enhancements (zoxide, starship)\n\n🪟 To use Sway: Select 'Sway' from login screen session options.\n\n⚠️ If any downloads failed, re-run the script after reboot."
+log "✅ Setup complete. Installed:\n- Core tools, Docker\n- Ruby ${DEFAULT_RUBY} (RVM) + Rails\n- Node LTS (nvm) + Corepack\n- DBeaver CE, MongoDB shell\n- Chrome, Firefox, Zoom, Teams\n- VS Code, Slack, Notepad++, Android Studio\n- Sway Wayland compositor + Waybar + Wofi\n- Enhanced terminal: Zoxide, Starship, LazyGit, LazyDocker, Eza\n- Terminal apps: Terminator, gedit\n- Programming fonts: JetBrains Mono, Fira Code, Cascadia Code\n\n🔄 IMPORTANT: Log out and back in for:\n   • Docker group permissions (required for LazyDocker)\n   • nvm PATH configuration\n   • Shell enhancements (zoxide, starship)\n\n🪟 To use Sway: Select 'Sway' from login screen session options.\n\n⚠️ If any downloads failed, re-run the script after reboot."
