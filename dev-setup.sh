@@ -222,7 +222,8 @@ if ! need_cmd Hyprland; then
     libinput-bin libinput-dev libxcb-composite0-dev libavutil-dev libavcodec-dev \
     libavformat-dev libxcb-ewmh2 libxcb-ewmh-dev libxcb-present-dev libxcb-icccm4-dev \
     libxcb-render-util0-dev libxcb-res0-dev libxcb-xinput-dev xdg-desktop-portal-wlr \
-    libtomlplusplus3 libpugixml-dev || true
+    libtomlplusplus3 libpugixml-dev \
+    libwayland-dev wayland-protocols libgbm-dev libliftoff-dev libdisplay-info-dev hwdata || true
 
   # Upgrade CMake if needed (Hyprland requires 3.30+)
   CMAKE_VERSION=$(cmake --version 2>/dev/null | head -n1 | grep -oP '\d+\.\d+' | head -1 || echo "0")
@@ -238,12 +239,43 @@ if ! need_cmd Hyprland; then
     sudo apt-get install -y cmake || true
   fi
 
+  # Check libinput version (aquamarine needs 1.26.0+)
+  LIBINPUT_VERSION=$(pkg-config --modversion libinput 2>/dev/null || echo "0")
+  if ! awk -v ver="$LIBINPUT_VERSION" 'BEGIN{exit(!(ver>=1.26))}' 2>/dev/null; then
+    log "Current libinput version ($LIBINPUT_VERSION) is older than required (1.26.0)"
+    log "Attempting to upgrade libinput from source…"
+
+    # Temporarily disable unbound variable check
+    set +u
+    LIBINPUT_BUILD_DIR=$(mktemp -d)
+    cd "$LIBINPUT_BUILD_DIR"
+
+    # Install libinput build dependencies
+    sudo apt-get install -y libmtdev-dev libevdev-dev libwacom-dev meson ninja-build || true
+
+    if wget https://gitlab.freedesktop.org/libinput/libinput/-/archive/1.27.0/libinput-1.27.0.tar.gz 2>/dev/null; then
+      tar -xf libinput-1.27.0.tar.gz
+      cd libinput-1.27.0
+      if meson setup --prefix=/usr builddir && ninja -C builddir && sudo ninja -C builddir install; then
+        log "✅ libinput upgraded to 1.27.0"
+        # Update library cache
+        sudo ldconfig
+      else
+        log "⚠️ libinput upgrade failed, will attempt Hyprland build anyway"
+      fi
+    fi
+
+    cd /tmp
+    rm -rf "$LIBINPUT_BUILD_DIR"
+    set -u
+  fi
+
   # Temporarily disable unbound variable check for Hyprland build
   set +u
   TEMP_BUILD_DIR=$(mktemp -d)
 
-  # Step 1: Build and install hyprwayland-scanner (required by aquamarine)
-  log "Building hyprwayland-scanner (Hyprland dependency 1/3)…"
+  # Step 1: Build and install hyprwayland-scanner (required by hyprutils and aquamarine)
+  log "Building hyprwayland-scanner (Hyprland dependency 1/4)…"
   cd "$TEMP_BUILD_DIR"
   if git clone https://github.com/hyprwm/hyprwayland-scanner 2>/dev/null; then
     cd hyprwayland-scanner
@@ -254,8 +286,20 @@ if ! need_cmd Hyprland; then
     fi
   fi
 
-  # Step 2: Build and install aquamarine (required by Hyprland)
-  log "Building aquamarine (Hyprland dependency 2/3)…"
+  # Step 2: Build and install hyprutils (required by aquamarine)
+  log "Building hyprutils (Hyprland dependency 2/4)…"
+  cd "$TEMP_BUILD_DIR"
+  if git clone https://github.com/hyprwm/hyprutils 2>/dev/null; then
+    cd hyprutils
+    if cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -B build && cmake --build build -j`nproc` && sudo cmake --install build; then
+      log "✅ hyprutils installed successfully"
+    else
+      log "⚠️ hyprutils build failed, Hyprland installation may fail"
+    fi
+  fi
+
+  # Step 3: Build and install aquamarine (required by Hyprland)
+  log "Building aquamarine (Hyprland dependency 3/4)…"
   cd "$TEMP_BUILD_DIR"
   if git clone https://github.com/hyprwm/aquamarine 2>/dev/null; then
     cd aquamarine
@@ -266,8 +310,8 @@ if ! need_cmd Hyprland; then
     fi
   fi
 
-  # Step 3: Build and install Hyprland
-  log "Building Hyprland from source (3/3, may take 5-10 minutes)…"
+  # Step 4: Build and install Hyprland
+  log "Building Hyprland from source (4/4, may take 5-10 minutes)…"
   cd "$TEMP_BUILD_DIR"
   if git clone --recursive https://github.com/hyprwm/Hyprland 2>/dev/null; then
     cd Hyprland
