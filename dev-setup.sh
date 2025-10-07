@@ -42,6 +42,29 @@ else
   sudo usermod -aG docker "$REAL_USER" || true
 fi
 
+# ---------- kubectl (Kubernetes CLI) ----------
+if ! need_cmd kubectl; then
+  log "Installing kubectl…"
+  curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | sudo gpg --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+  sudo apt-get update -y
+  sudo apt-get install -y kubectl
+  log "✅ kubectl installed successfully"
+else
+  log "kubectl already installed"
+fi
+
+# ---------- aws-iam-authenticator ----------
+if ! need_cmd aws-iam-authenticator; then
+  log "Installing aws-iam-authenticator…"
+  curl -fsSL "https://github.com/kubernetes-sigs/aws-iam-authenticator/releases/download/v0.6.27/aws-iam-authenticator_0.6.27_linux_amd64" -o /tmp/aws-iam-authenticator
+  sudo install -o root -g root -m 0755 /tmp/aws-iam-authenticator /usr/local/bin/aws-iam-authenticator
+  rm -f /tmp/aws-iam-authenticator
+  log "✅ aws-iam-authenticator installed successfully"
+else
+  log "aws-iam-authenticator already installed"
+fi
+
 # ---------- RVM + Ruby ----------
 if ! need_cmd rvm; then
   log "Installing RVM (Ruby Version Manager)…"
@@ -497,4 +520,4 @@ if need_cmd zsh; then
   fi
 fi
 
-log "✅ Setup complete. Installed:\n- Core tools, Docker\n- Ruby ${DEFAULT_RUBY} (RVM) + Rails\n- Node LTS (nvm) + Corepack\n- DBeaver CE, MongoDB shell\n- Browsers: Chrome, Firefox\n- Communication: Zoom, Teams, WhatsApp, Signal\n- Media: FreeTube (YouTube)\n- VS Code with Claude Code extension, Slack, Notepad++, Android Studio\n- Hyprland Wayland compositor + Waybar + Wofi (with Nvidia support)\n- Enhanced terminal: Zoxide, Starship, LazyGit, LazyDocker, Eza\n- Terminal apps: Terminator, gedit\n- Programming fonts: JetBrains Mono, Fira Code, Cascadia Code\n- iCentris repositories cloned to ~/platform\n\n🔄 IMPORTANT: Log out and back in for:\n   • Docker group permissions (required for LazyDocker)\n   • nvm PATH configuration\n   • Shell enhancements (zoxide, starship)\n\n🪟 To use Hyprland: Select 'Hyprland' from login screen session options.\n\n⚠️ If any downloads failed, re-run the script after reboot."
+log "✅ Setup complete. Installed:\n- Core tools, Docker\n- kubectl + aws-iam-authenticator\n- Ruby ${DEFAULT_RUBY} (RVM) + Rails\n- Node LTS (nvm) + Corepack\n- DBeaver CE, MongoDB shell\n- Browsers: Chrome, Firefox\n- Communication: Zoom, Teams, WhatsApp, Signal\n- Media: FreeTube (YouTube)\n- VS Code with Claude Code extension, Slack, Notepad++, Android Studio\n- Hyprland Wayland compositor + Waybar + Wofi (with Nvidia support)\n- Enhanced terminal: Zoxide, Starship, LazyGit, LazyDocker, Eza\n- Terminal apps: Terminator, gedit\n- Programming fonts: JetBrains Mono, Fira Code, Cascadia Code\n- iCentris repositories cloned to ~/platform\n\n🔄 IMPORTANT: Log out and back in for:\n   • Docker group permissions (required for LazyDocker)\n   • nvm PATH configuration\n   • Shell enhancements (zoxide, starship)\n\n🪟 To use Hyprland: Select 'Hyprland' from login screen session options.\n\n⚠️ If any downloads failed, re-run the script after reboot."
