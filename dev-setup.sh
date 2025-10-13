@@ -437,11 +437,12 @@ sudo apt-get install -y fonts-jetbrains-mono fonts-firacode fonts-cascadia-code 
 
 # ---------- Snap apps ----------
 if need_cmd snap; then
-  log "Installing Snap apps (VS Code, Slack, Notepad++, Android Studio)…"
+  log "Installing Snap apps (VS Code, Slack, Notepad++, Android Studio, OnlyOffice)…"
   sudo snap install code --classic || true
   sudo snap install slack --classic || true
   sudo snap install notepad-plus-plus || true
   sudo snap install android-studio --classic || true
+  sudo snap install onlyoffice-desktopeditors || true
 
   # Install VS Code extensions
   if need_cmd code; then
@@ -520,4 +521,4 @@ if need_cmd zsh; then
   fi
 fi
 
-log "✅ Setup complete. Installed:\n- Core tools, Docker\n- kubectl + aws-iam-authenticator\n- Ruby ${DEFAULT_RUBY} (RVM) + Rails\n- Node LTS (nvm) + Corepack\n- DBeaver CE, MongoDB shell\n- Browsers: Chrome, Firefox\n- Communication: Zoom, Teams, WhatsApp, Signal\n- Media: FreeTube (YouTube)\n- VS Code with Claude Code extension, Slack, Notepad++, Android Studio\n- Hyprland Wayland compositor + Waybar + Wofi (with Nvidia support)\n- Enhanced terminal: Zoxide, Starship, LazyGit, LazyDocker, Eza\n- Terminal apps: Terminator, gedit\n- Programming fonts: JetBrains Mono, Fira Code, Cascadia Code\n- iCentris repositories cloned to ~/platform\n\n🔄 IMPORTANT: Log out and back in for:\n   • Docker group permissions (required for LazyDocker)\n   • nvm PATH configuration\n   • Shell enhancements (zoxide, starship)\n\n🪟 To use Hyprland: Select 'Hyprland' from login screen session options.\n\n⚠️ If any downloads failed, re-run the script after reboot."
+log "✅ Setup complete. Installed:\n- Core tools, Docker\n- kubectl + aws-iam-authenticator\n- Ruby ${DEFAULT_RUBY} (RVM) + Rails\n- Node LTS (nvm) + Corepack\n- DBeaver CE, MongoDB shell\n- Browsers: Chrome, Firefox\n- Communication: Zoom, Teams, WhatsApp, Signal\n- Media: FreeTube (YouTube)\n- Productivity: OnlyOffice Desktop Editors\n- VS Code with Claude Code extension, Slack, Notepad++, Android Studio\n- Hyprland Wayland compositor + Waybar + Wofi (with Nvidia support)\n- Enhanced terminal: Zoxide, Starship, LazyGit, LazyDocker, Eza\n- Terminal apps: Terminator, gedit\n- Programming fonts: JetBrains Mono, Fira Code, Cascadia Code\n- iCentris repositories cloned to ~/platform\n\n🔄 IMPORTANT: Log out and back in for:\n   • Docker group permissions (required for LazyDocker)\n   • nvm PATH configuration\n   • Shell enhancements (zoxide, starship)\n\n🪟 To use Hyprland: Select 'Hyprland' from login screen session options.\n\n⚠️ If any downloads failed, re-run the script after reboot."
