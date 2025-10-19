@@ -26,7 +26,7 @@ sudo rm -f /etc/apt/sources.list.d/mongodb-org-*.list 2>/dev/null || true
 sudo apt-get update -y
 sudo apt-get upgrade -y || true
 
-sudo apt-get install -y   build-essential git curl wget ca-certificates gnupg software-properties-common   unzip zip jq   vim neovim gedit   zsh tmux   fzf ripgrep htop tree   terminator   llvm pkg-config   libssl-dev libreadline-dev zlib1g-dev libyaml-dev libffi-dev   libgdbm-dev libdb-dev libncurses5-dev libsqlite3-dev sqlite3   libxml2-dev libxslt1-dev autoconf bison   dnsutils net-tools   apt-transport-https lsb-release
+sudo apt-get install -y   build-essential git curl wget ca-certificates gnupg software-properties-common   unzip zip jq   vim neovim gedit   zsh tmux   fzf ripgrep htop tree   terminator   llvm pkg-config   libssl-dev libreadline-dev zlib1g-dev libyaml-dev libffi-dev   libgdbm-dev libdb-dev libncurses5-dev libsqlite3-dev sqlite3   libxml2-dev libxslt1-dev autoconf bison   dnsutils net-tools   apt-transport-https lsb-release   dia
 
 # ---------- Docker (official repo) ----------
 if ! need_cmd docker; then
